@@ -16,6 +16,7 @@ config_file = np.genfromtxt('config.csv', delimiter=',', skip_header=1, dtype=ob
 
 API_TOKEN = config_file[0, 0].decode('utf-8')  # API token for Toggl
 REFRESH_RATE = int(config_file[2, 0].decode('utf-8'))  # Number of 1 s to wait before getting new data from Toggl
+width = 67  # Width of display in characters (Ensure width - 40 > 0)
 
 semester_data = np.array(config_file[:, 1:5], dtype='U')  # Columns SEMESTER to WORKLOAD
 semester_data = semester_data[list(set(semester_data.nonzero()[0]))]
@@ -71,6 +72,9 @@ def current_time():
 project_data = np.array(config_file[:, 5:9], dtype='U')  # Last 4 columns of config.csv
 project_data = project_data[list(set(project_data.nonzero()[0]))]
 
+TRACKED_TAGS = np.array(config_file[:5, 9:11], dtype='U')  # 5 tags max
+TRACKED_TAGS = TRACKED_TAGS[list(set(TRACKED_TAGS.nonzero()[0]))]
+
 
 def current_semester_data():
     """
@@ -119,6 +123,18 @@ CURRENT_SEMESTER, START_DATE, END_DATE, CURRENT_WEEK, \
 CURRENT_WEEK_END_DATE = CURRENT_WEEK_START_DATE + timedelta(weeks=1)
 
 
+def choose_tag(data):
+    """
+    Choose the first tag in data that appears in tracked tags.
+    :param data: List of tags
+    :return: string or None
+    """
+    for tag in data:
+        if tag in TRACKED_TAGS[:, 0]:
+            return tag
+    return None
+
+
 def query_toggl():
     """
     Get and process the relevant data from Toggl using the Toggl API.
@@ -142,7 +158,7 @@ def query_toggl():
 
     current_timer = 0
     for entry in entries:  # Go through each recorded entry
-        try:  # Get the pid and semester of the module
+        try:  # Get the pid and semester of the module; and get tags
             module = np.where(project_data[:, 1].astype(int) == int(entry['pid']))[0]
             if len(module) != 0:  # If the entry's pid is in the defined list
                 pid = int(entry['pid'])
@@ -151,10 +167,16 @@ def query_toggl():
                 continue
         except KeyError:  # If the entry isn't part of a project
             continue
+
+        try:  # try to get the main tag for the entry
+            tag = choose_tag(entry['tags'])  # Choose the first tracked tag
+        except KeyError:
+            tag = None  # No tags set
+
         try:  # Try to get the time it was stopped
             stop = format_date(entry['stop'])
         except KeyError:
-            current_timer = np.array([pid, semester, format_date(entry['start']), -1, -1], dtype=object)
+            current_timer = np.array([pid, semester, format_date(entry['start']), -1, -1, tag], dtype=object)
             continue
         if int(entry['duration']) >= 0:  # If the duration is positive it has stopped
             duration = int(entry['duration'])
@@ -162,7 +184,7 @@ def query_toggl():
             print("ERROR: Unexpected negative duration")  # Should not happen according to API docs.
             sys.exit(1)
 
-        valid_entry = np.array([pid, semester, format_date(entry['start']), stop, duration], dtype=object)
+        valid_entry = np.array([pid, semester, format_date(entry['start']), stop, duration, tag], dtype=object)
         try:
             table = np.append(table, [valid_entry], axis=0)
         except NameError:
@@ -236,7 +258,9 @@ def group_projects(data, all_year=False):
         current_projects = filter_semester(project_data, position=2)  # Data on the semester's projects
 
     n_projects = len(current_projects)  # Number of current projects
+    n_tags = len(TRACKED_TAGS)  # Number of tracked tags
     durations = np.empty(n_projects, dtype=int)  # Holder for completed seconds for each project
+    tags = np.empty((n_projects, n_tags), dtype=float)
 
     for i in range(n_projects):  # For each project
         pid = int(current_projects[i, 1])  # Get the project ID
@@ -253,6 +277,14 @@ def group_projects(data, all_year=False):
             total_hours = float(current_projects[i, 3])
         current_projects[i, 3] = int(total_hours * 60 * 60)  # Convert to whole seconds
 
+        # Tags
+        for j in range(n_tags):
+            matched_tags = np.where(filtered_data[:, 5] == TRACKED_TAGS[j, 0])[0]  # Locations of entries with tag
+            if durations[i] == 0:  # If no relevant entries found
+                tags[i, j] = 0
+            else:
+                tags[i, j] = np.sum(filtered_data[matched_tags][:, 4]) / durations[i]  # Fraction of tot. project dur.
+
     # Number of seconds expected this week
     week_targets = current_projects[:, 3].astype(int) * CUR_WORKLOAD  # Ignore if all_year=True
 
@@ -261,6 +293,7 @@ def group_projects(data, all_year=False):
 
     for new_col in [durations, week_targets, semester_targets]:  # Add the new data to the existing data
         current_projects = np.append(current_projects, new_col.reshape((current_projects.shape[0], 1)), 1)
+    current_projects = np.append(current_projects, tags, 1)  # Add the tags
     return current_projects
 
 
@@ -355,11 +388,10 @@ def print_module_grid(data, heading, stat1=None, stat1_sum=None, stat2=None, sta
     :param stat1: list of decimals to be outputted as percentages
     :param stat1_sum: aggregate of stat1 list
     :param stat2: list of decimals to be outputted as percentages
-    :param stat2_sum: aggregate of stat1 list
+    :param stat2_sum: aggregate of stat2 list
     :param t: type of target to be outputted: "daily", "weekly", "semester" or "yearly"
     :return:
     """
-    width = 67  # Width of display in characters (Ensure width - 40 > 0)
     total_duration = np.sum(data[:, 4].astype(float))  # Sum of durations
 
     if t == "daily":  # Use week target / 7
@@ -368,7 +400,7 @@ def print_module_grid(data, heading, stat1=None, stat1_sum=None, stat2=None, sta
         targets = data[:, 5].astype(float)
     elif t == "semester":
         targets = data[:, 6].astype(float)
-    else:  # Total seconds (hours) for module
+    elif t == "yearly":  # Total seconds (hours) for module
         targets = data[:, 3].astype(float)
     total_targets = np.sum(targets)  # Sum of targets
 
@@ -406,6 +438,79 @@ def print_module_grid(data, heading, stat1=None, stat1_sum=None, stat2=None, sta
         print_nl(fmt.format("TOTAL", format_time(total_duration), format_time(total_targets),
                             format_time(total_remaining)), bold=True)  # Print aggregates
     print_nl('')  # Insert blank line between tables
+
+
+def print_tag_grid(data, toggl_data):
+    """
+    Print the table of tags for each project.
+    :param data: project data
+    :param toggl_data: query_toggl() data
+    :return: nothing
+    """
+
+    # Find tag proportions across all projects
+    total_duration = np.sum(data[:, 4].astype(float))  # Sum of durations
+    n_tags = len(TRACKED_TAGS)
+    tags = np.empty(n_tags, dtype=float)
+    if total_duration == 0:  # If no relevant time entries found
+        tags = 0
+    else:
+        for i in range(n_tags):
+            matched_tags = np.where(toggl_data[:, 5] == TRACKED_TAGS[i, 0])[0]  # Locations of entries with tag
+            tags[i] = np.sum(toggl_data[matched_tags][:, 4]) / total_duration  # Fraction of total duration
+
+    # Different formatting depending on number of tags tracked
+    if n_tags == 5:
+        head_fmt = '{0:>' + str(width - 40) + '} {1:^7} {2:^7} {3:^7} {4:^7} {5:^7}'  # Heading format
+        fmt = '{0:>' + str(width - 40) + '} {1: 7.2%} {2: 7.2%} {3: 7.2%} {4: 7.2%} {5: 7.2%}'  # Body format
+        print_nl(head_fmt.format("Tracked Tags", TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1], TRACKED_TAGS[2, 1],
+                                 TRACKED_TAGS[3, 1], TRACKED_TAGS[4, 1]), bold=True)  # Print heading
+        print_nl('─' * width)  # Print rule
+        for module in range(len(data)):  # Print row for each module
+            print_nl(fmt.format(data[module, 0], float(data[module, 7]), float(data[module, 8]),
+                                float(data[module, 9]), float(data[module, 10]), float(data[module, 11])))
+        print_nl(fmt.format("ALL", tags[0], tags[1], tags[2], tags[3], tags[4]), bold=True)  # Print aggregates
+        print_nl('')
+    elif n_tags == 4:
+        head_fmt = '{0:>' + str(width - 32) + '} {1:^7} {2:^7} {3:^7} {4:^7}'  # Heading format
+        fmt = '{0:>' + str(width - 32) + '} {1: 7.2%} {2: 7.2%} {3: 7.2%} {4: 7.2%}'  # Body format
+        print_nl(head_fmt.format("Tracked Tags", TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1],
+                                 TRACKED_TAGS[2, 1], TRACKED_TAGS[3, 1]), bold=True)  # Print heading
+        print_nl('─' * width)  # Print rule
+        for module in range(len(data)):  # Print row for each module
+            print_nl(fmt.format(data[module, 0], float(data[module, 7]), float(data[module, 8]),
+                                float(data[module, 9]), float(data[module, 10])))
+        print_nl(fmt.format("ALL", tags[0], tags[1], tags[2], tags[3]), bold=True)  # Print aggregates
+        print_nl('')
+    elif n_tags == 3:
+        head_fmt = '{0:>' + str(width - 24) + '} {1:^7} {2:^7} {3:^7}'  # Heading format
+        fmt = '{0:>' + str(width - 24) + '} {1: 7.2%} {2: 7.2%} {3: 7.2%}'  # Body format
+        print_nl(head_fmt.format("Tracked Tags", TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1],
+                                 TRACKED_TAGS[2, 1]), bold=True)  # Print heading
+        print_nl('─' * width)  # Print rule
+        for module in range(len(data)):  # Print row for each module
+            print_nl(fmt.format(data[module, 0], float(data[module, 7]), float(data[module, 8]),
+                                float(data[module, 9])))
+        print_nl(fmt.format("ALL", tags[0], tags[1], tags[2]), bold=True)  # Print aggregates
+        print_nl('')
+    elif n_tags == 2:
+        head_fmt = '{0:>' + str(width - 16) + '} {1:^7} {2:^7}'  # Heading format
+        fmt = '{0:>' + str(width - 16) + '} {1: 7.2%} {2: 7.2%}'  # Body format
+        print_nl(head_fmt.format("Tracked Tags", TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1]), bold=True)  # Print heading
+        print_nl('─' * width)  # Print rule
+        for module in range(len(data)):  # Print row for each module
+            print_nl(fmt.format(data[module, 0], float(data[module, 7]), float(data[module, 8])))
+        print_nl(fmt.format("ALL", tags[0], tags[1]), bold=True)  # Print aggregates
+        print_nl('')
+    elif n_tags == 1:
+        head_fmt = '{0:>' + str(width - 8) + '} {1:^7}'  # Heading format
+        fmt = '{0:>' + str(width - 8) + '} {1: 7.2%}'  # Body format
+        print_nl(head_fmt.format("Tracked Tags", TRACKED_TAGS[0, 1]), bold=True)  # Print heading
+        print_nl('─' * width)  # Print rule
+        for module in range(len(data)):  # Print row for each module
+            print_nl(fmt.format(data[module, 0], float(data[module, 7])))
+        print_nl(fmt.format("ALL", tags[0]), bold=True)  # Print aggregates
+        print_nl('')
 
 
 def set_running(data):
@@ -463,10 +568,14 @@ def main(stdscr):
                           stat1=target, stat1_sum=target_overall,
                           stat2=completion, stat2_sum=completion_overall, t="semester")
 
+        # Tracked Tags
+        print_tag_grid(projects, semester_toggl_data)
+
         # All Year Modules Section
         all_year_projects = group_projects(year_toggl_data, all_year=True)
-        none1, none2, completion, completion_overall = get_stats(all_year_projects, mode="all")
-        print_module_grid(all_year_projects, "All Year Modules", stat1=completion, stat1_sum=completion_overall)
+        if len(all_year_projects) > 0:  # Only show table if there are all year modules
+            none1, none2, completion, completion_overall = get_stats(all_year_projects, mode="all")
+            print_module_grid(all_year_projects, "All Year Modules", stat1=completion, stat1_sum=completion_overall)
 
         if TIME_MACHINE:  # Freeze screen
             time.sleep(60 * 60)  # Quit after 1 hour
