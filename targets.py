@@ -16,7 +16,8 @@ config_file = np.genfromtxt('config.csv', delimiter=',', skip_header=1, dtype=ob
 
 API_TOKEN = config_file[0, 0].decode('utf-8')  # API token for Toggl
 REFRESH_RATE = int(config_file[2, 0].decode('utf-8'))  # Number of 1 s to wait before getting new data from Toggl
-width = 67  # Width of display in characters (Ensure width - 40 > 0)
+TOGGL_ERROR = False  # Initialise error display variable
+loops = 0  # Counter to determine when to refresh Toggl data
 
 semester_data = np.array(config_file[:, 1:5], dtype='U')  # Columns SEMESTER to WORKLOAD
 semester_data = semester_data[list(set(semester_data.nonzero()[0]))]
@@ -50,10 +51,7 @@ if len(sys.argv) > 1:  # Parse time machine data from given arguments
         try:  # Check that the date is valid
             TIME_MACHINE_DATE = datetime.strptime(sys.argv[2] + ' ' + sys.argv[3],
                                                   '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
-        except ValueError:
-            print("Invalid Time Machine Date. Required format: YYYY-MM-DD HH:MM:SS")
-            sys.exit(1)
-        except IndexError:
+        except (ValueError, IndexError) as e:
             print("Invalid Time Machine Date. Required format: YYYY-MM-DD HH:MM:SS")
             sys.exit(1)
 
@@ -362,11 +360,15 @@ def print_nl(string, bold=False):
     :return: nothing
     """
     global y, stdscr
-    if bold:  # Output bold text
-        stdscr.addstr(y, 0, string, curses.A_BOLD)
-    else:  # Output regular text
-        stdscr.addstr(y, 0, string)
-    y += 1  # Move cursor to next line
+    try:  # Don't go over the bottom
+        if bold:  # Output bold text
+            stdscr.addstr(y, 0, string, curses.A_BOLD)
+        else:  # Output regular text
+            stdscr.addstr(y, 0, string)
+        y += 1  # Move cursor to next line
+    except curses.error:
+        height1, width1 = stdscr.getmaxyx()  # Update display size
+        stdscr.addstr(height1-1, 0, str('...'))  # Alert
 
 
 def print_reset():
@@ -374,7 +376,10 @@ def print_reset():
     Reset the curses screen for a new loop.
     :return: nothing
     """
-    global y, stdscr
+    global y, stdscr, height, width, loops
+    height, width = stdscr.getmaxyx()  # Display size
+    status = '!' if TOGGL_ERROR else str(loops + 1)  # Determine the refresh status message
+    stdscr.addstr(0, 0, status)
     stdscr.refresh()  # Refresh screen
     y = 0  # Start printing at top of screen
     stdscr.clear()  # Clear previous screen
@@ -407,35 +412,42 @@ def print_module_grid(data, heading, stat1=None, stat1_sum=None, stat2=None, sta
     remaining = targets - data[:, 4].astype(float)
     total_remaining = total_targets - total_duration
 
+    if width <= 40:  # Screen too narrow
+        print_nl('|<' + '-' * (width - 4) + '>|')
+        return 0
+
     if stat1 is not None and stat2 is not None:  # If two stats are given
-        head_fmt = '{0:>' + str(width - 40) + '} {1:^6} {2:^6} {3:^8} {4:^8} {5:^7}'  # Heading format
-        fmt = '{0:>' + str(width - 40) + '} {1:>6} {2:>6} {3: 8.2%} {4: 8.2%} {5:>7}'  # Body format
-        print_nl(head_fmt.format(heading, '⏱', '🎯', '', '', '⏲'), bold=True)  # Print heading
+        w = width - 40  # Maximum width
+        head_fmt = '{0:>' + str(w) + '} {1:^6} {2:^6} {3:^8} {4:^8} {5:^7}'  # Heading format
+        fmt = '{0:>' + str(w) + '} {1:>6} {2:>6} {3: 8.2%} {4: 8.2%} {5:>7}'  # Body format
+        print_nl(head_fmt.format(heading[:w], '⏱', '🎯', '', '', '⏲'), bold=True)  # Print heading
         print_nl('─' * width)  # Print rule
         for module in range(len(data)):  # Print row for each module
-            print_nl(fmt.format(data[module, 0], format_time(data[module, 4]), format_time(targets[module]),
+            print_nl(fmt.format(data[module, 0][:w], format_time(data[module, 4]), format_time(targets[module]),
                      stat1[module], stat2[module], format_time(remaining[module])))
-        print_nl(fmt.format("TOTAL", format_time(total_duration), format_time(total_targets),
+        print_nl(fmt.format("TOTAL"[:w], format_time(total_duration), format_time(total_targets),
                             stat1_sum, stat2_sum, format_time(total_remaining)), bold=True)  # Print aggregates
     elif stat1 is not None:  # If one stat is given
-        head_fmt = '{0:>' + str(width - 31) + '} {1:^6} {2:^6} {3:^8} {4:^7}'  # Heading format
-        fmt = '{0:>' + str(width - 31) + '} {1:>6} {2:>6} {3: 8.2%} {4:>7}'  # Body format
-        print_nl(head_fmt.format(heading, '⏱', '🎯', '', '⏲'), bold=True)  # Print heading
+        w = width - 31  # Maximum width
+        head_fmt = '{0:>' + str(w) + '} {1:^6} {2:^6} {3:^8} {4:^7}'  # Heading format
+        fmt = '{0:>' + str(w) + '} {1:>6} {2:>6} {3: 8.2%} {4:>7}'  # Body format
+        print_nl(head_fmt.format(heading[:w], '⏱', '🎯', '', '⏲'), bold=True)  # Print heading
         print_nl('─' * width)  # Print rule
         for module in range(len(data)):  # Print row for each module
-            print_nl(fmt.format(data[module, 0], format_time(data[module, 4]), format_time(targets[module]),
+            print_nl(fmt.format(data[module, 0][:w], format_time(data[module, 4]), format_time(targets[module]),
                      stat1[module], format_time(remaining[module])))
-        print_nl(fmt.format("TOTAL", format_time(total_duration), format_time(total_targets),
-                                       stat1_sum, format_time(total_remaining)), bold=True)  # Print aggregates
+        print_nl(fmt.format("TOTAL"[:w], format_time(total_duration), format_time(total_targets),
+                            stat1_sum, format_time(total_remaining)), bold=True)  # Print aggregates
     else:  # If no stats are given (Not currently in use.)
-        head_fmt = '{0:>' + str(width - 22) + '} {1:^6} {2:^6} {3:^7}'  # Heading format
-        fmt = '{0:>' + str(width - 22) + '} {1:>6} {2:>6} {3:>7}'  # Body format
-        print_nl(head_fmt.format(heading, '⏱', '🎯', '⏲'), bold=True)  # Print heading
+        w = width - 22  # Maximum width
+        head_fmt = '{0:>' + str(w) + '} {1:^6} {2:^6} {3:^7}'  # Heading format
+        fmt = '{0:>' + str(w) + '} {1:>6} {2:>6} {3:>7}'  # Body format
+        print_nl(head_fmt.format(heading[:w], '⏱', '🎯', '⏲'), bold=True)  # Print heading
         print_nl('─' * width)  # Print rule
         for module in range(len(data)):  # Print row for each module
-            print_nl(fmt.format(data[module, 0], format_time(data[module, 4]), format_time(targets[module]),
+            print_nl(fmt.format(data[module, 0][:w], format_time(data[module, 4]), format_time(targets[module]),
                                 format_time(remaining[module])))
-        print_nl(fmt.format("TOTAL", format_time(total_duration), format_time(total_targets),
+        print_nl(fmt.format("TOTAL"[:w], format_time(total_duration), format_time(total_targets),
                             format_time(total_remaining)), bold=True)  # Print aggregates
     print_nl('')  # Insert blank line between tables
 
@@ -459,57 +471,66 @@ def print_tag_grid(data, toggl_data):
             matched_tags = np.where(toggl_data[:, 5] == TRACKED_TAGS[i, 0])[0]  # Locations of entries with tag
             tags[i] = np.sum(toggl_data[matched_tags][:, 4]) / total_duration  # Fraction of total duration
 
+    if width <= 40:  # Screen too narrow
+        print_nl('|<' + '-' * (width - 4) + '>|')
+        return 0
+
     # Different formatting depending on number of tags tracked
     if n_tags == 5:
-        head_fmt = '{0:>' + str(width - 40) + '} {1:^7} {2:^7} {3:^7} {4:^7} {5:^7}'  # Heading format
-        fmt = '{0:>' + str(width - 40) + '} {1: 7.2%} {2: 7.2%} {3: 7.2%} {4: 7.2%} {5: 7.2%}'  # Body format
-        print_nl(head_fmt.format("Tracked Tags", TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1], TRACKED_TAGS[2, 1],
+        w = width - 40  # Maximum width
+        head_fmt = '{0:>' + str(w) + '} {1:^7} {2:^7} {3:^7} {4:^7} {5:^7}'  # Heading format
+        fmt = '{0:>' + str(w) + '} {1: 7.2%} {2: 7.2%} {3: 7.2%} {4: 7.2%} {5: 7.2%}'  # Body format
+        print_nl(head_fmt.format("Tracked Tags"[:w], TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1], TRACKED_TAGS[2, 1],
                                  TRACKED_TAGS[3, 1], TRACKED_TAGS[4, 1]), bold=True)  # Print heading
         print_nl('─' * width)  # Print rule
         for module in range(len(data)):  # Print row for each module
-            print_nl(fmt.format(data[module, 0], float(data[module, 7]), float(data[module, 8]),
+            print_nl(fmt.format(data[module, 0][:w], float(data[module, 7]), float(data[module, 8]),
                                 float(data[module, 9]), float(data[module, 10]), float(data[module, 11])))
-        print_nl(fmt.format("ALL", tags[0], tags[1], tags[2], tags[3], tags[4]), bold=True)  # Print aggregates
+        print_nl(fmt.format("ALL"[:w], tags[0], tags[1], tags[2], tags[3], tags[4]), bold=True)  # Print aggregates
         print_nl('')
     elif n_tags == 4:
-        head_fmt = '{0:>' + str(width - 32) + '} {1:^7} {2:^7} {3:^7} {4:^7}'  # Heading format
-        fmt = '{0:>' + str(width - 32) + '} {1: 7.2%} {2: 7.2%} {3: 7.2%} {4: 7.2%}'  # Body format
-        print_nl(head_fmt.format("Tracked Tags", TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1],
+        w = width - 32  # Maximum width
+        head_fmt = '{0:>' + str(w) + '} {1:^7} {2:^7} {3:^7} {4:^7}'  # Heading format
+        fmt = '{0:>' + str(w) + '} {1: 7.2%} {2: 7.2%} {3: 7.2%} {4: 7.2%}'  # Body format
+        print_nl(head_fmt.format("Tracked Tags"[:w], TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1],
                                  TRACKED_TAGS[2, 1], TRACKED_TAGS[3, 1]), bold=True)  # Print heading
         print_nl('─' * width)  # Print rule
         for module in range(len(data)):  # Print row for each module
-            print_nl(fmt.format(data[module, 0], float(data[module, 7]), float(data[module, 8]),
+            print_nl(fmt.format(data[module, 0][:w], float(data[module, 7]), float(data[module, 8]),
                                 float(data[module, 9]), float(data[module, 10])))
-        print_nl(fmt.format("ALL", tags[0], tags[1], tags[2], tags[3]), bold=True)  # Print aggregates
+        print_nl(fmt.format("ALL"[:w], tags[0], tags[1], tags[2], tags[3]), bold=True)  # Print aggregates
         print_nl('')
     elif n_tags == 3:
-        head_fmt = '{0:>' + str(width - 24) + '} {1:^7} {2:^7} {3:^7}'  # Heading format
-        fmt = '{0:>' + str(width - 24) + '} {1: 7.2%} {2: 7.2%} {3: 7.2%}'  # Body format
-        print_nl(head_fmt.format("Tracked Tags", TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1],
+        w = width - 24  # Maximum width
+        head_fmt = '{0:>' + str(w) + '} {1:^7} {2:^7} {3:^7}'  # Heading format
+        fmt = '{0:>' + str(w) + '} {1: 7.2%} {2: 7.2%} {3: 7.2%}'  # Body format
+        print_nl(head_fmt.format("Tracked Tags"[:w], TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1],
                                  TRACKED_TAGS[2, 1]), bold=True)  # Print heading
         print_nl('─' * width)  # Print rule
         for module in range(len(data)):  # Print row for each module
-            print_nl(fmt.format(data[module, 0], float(data[module, 7]), float(data[module, 8]),
+            print_nl(fmt.format(data[module, 0][:w], float(data[module, 7]), float(data[module, 8]),
                                 float(data[module, 9])))
-        print_nl(fmt.format("ALL", tags[0], tags[1], tags[2]), bold=True)  # Print aggregates
+        print_nl(fmt.format("ALL"[:w], tags[0], tags[1], tags[2]), bold=True)  # Print aggregates
         print_nl('')
     elif n_tags == 2:
-        head_fmt = '{0:>' + str(width - 16) + '} {1:^7} {2:^7}'  # Heading format
-        fmt = '{0:>' + str(width - 16) + '} {1: 7.2%} {2: 7.2%}'  # Body format
-        print_nl(head_fmt.format("Tracked Tags", TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1]), bold=True)  # Print heading
+        w = width - 16  # Maximum width
+        head_fmt = '{0:>' + str(w) + '} {1:^7} {2:^7}'  # Heading format
+        fmt = '{0:>' + str(w) + '} {1: 7.2%} {2: 7.2%}'  # Body format
+        print_nl(head_fmt.format("Tracked Tags"[:w], TRACKED_TAGS[0, 1], TRACKED_TAGS[1, 1]), bold=True)  # Print heading
         print_nl('─' * width)  # Print rule
         for module in range(len(data)):  # Print row for each module
-            print_nl(fmt.format(data[module, 0], float(data[module, 7]), float(data[module, 8])))
-        print_nl(fmt.format("ALL", tags[0], tags[1]), bold=True)  # Print aggregates
+            print_nl(fmt.format(data[module, 0][:w], float(data[module, 7]), float(data[module, 8])))
+        print_nl(fmt.format("ALL"[:w], tags[0], tags[1]), bold=True)  # Print aggregates
         print_nl('')
     elif n_tags == 1:
-        head_fmt = '{0:>' + str(width - 8) + '} {1:^7}'  # Heading format
-        fmt = '{0:>' + str(width - 8) + '} {1: 7.2%}'  # Body format
-        print_nl(head_fmt.format("Tracked Tags", TRACKED_TAGS[0, 1]), bold=True)  # Print heading
+        w = width - 8  # Maximum width
+        head_fmt = '{0:>' + str(w) + '} {1:^7}'  # Heading format
+        fmt = '{0:>' + str(w) + '} {1: 7.2%}'  # Body format
+        print_nl(head_fmt.format("Tracked Tags"[:w], TRACKED_TAGS[0, 1]), bold=True)  # Print heading
         print_nl('─' * width)  # Print rule
         for module in range(len(data)):  # Print row for each module
-            print_nl(fmt.format(data[module, 0], float(data[module, 7])))
-        print_nl(fmt.format("ALL", tags[0]), bold=True)  # Print aggregates
+            print_nl(fmt.format(data[module, 0][:w], float(data[module, 7])))
+        print_nl(fmt.format("ALL"[:w], tags[0]), bold=True)  # Print aggregates
         print_nl('')
 
 
@@ -526,13 +547,15 @@ def set_running(data):
 
 
 def main(stdscr):
-    loops = 0  # Counter to determine when to refresh Toggl data
+    global TOGGL_ERROR, loops
     while True:
         print_reset()  # Start printing from the top of the screen
         if loops <= 0:
             try:
                 year_toggl_data = query_toggl()  # Data for academic year
-            except requests.HTTPError:  # HTTP error encountered
+                TOGGL_ERROR = False
+            except (requests.HTTPError, requests.ConnectionError) as e:  # HTTP or connection error encountered
+                TOGGL_ERROR = True
                 try:  # Check if previous local data exists
                     year_toggl_data
                 except NameError:  # No previous data; keep trying Toggl
