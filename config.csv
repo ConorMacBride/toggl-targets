@@ -1,5 +1,5 @@
-﻿API_TOKEN,SEMESTER NAME,WEEK NAME,START_DATE,WORKLOAD,PROJECT _NAME,PID,SEMESTER,TOTAL_HOURS,TRACKED_TAGS,TAG_SYMBOL
-abc123,Semester 1,Orientation Week,10/08/2018,5,Test S1 Module 1,123,Semester 1,150,tutorial,Tut.
+API_TOKEN,SEMESTER NAME,WEEK NAME,START_DATE,WORKLOAD,PROJECT _NAME,PID,SEMESTER,TOTAL_HOURS,TRACKED_TAGS,TAG_SYMBOL
+abc123,Semester 1,Orientation Week,2018-09-01,5,Test S1 Module 1,123,Semester 1,150,tutorial,Tut.
 REFRESH_RATE,,Week 1,,7,Test S1 Module 2,234,Semester 1,150,lecture,Lec.
 10,,Week 2,,7,Test S1 Module 3,345,Semester 1,50,revision,Rev.
 ,,Week 3,,7,Test S1 Module 4,456,Semester 1,100,meeting,Meet.
