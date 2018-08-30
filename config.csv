@@ -1,0 +1,38 @@
+﻿API_TOKEN,SEMESTER NAME,WEEK NAME,START_DATE,WORKLOAD,PROJECT _NAME,PID,SEMESTER,TOTAL_HOURS,TRACKED_TAGS,TAG_SYMBOL
+abc123,Semester 1,Orientation Week,10/08/2018,5,Test S1 Module 1,123,Semester 1,150,tutorial,Tut.
+REFRESH_RATE,,Week 1,,7,Test S1 Module 2,234,Semester 1,150,lecture,Lec.
+10,,Week 2,,7,Test S1 Module 3,345,Semester 1,50,revision,Rev.
+,,Week 3,,7,Test S1 Module 4,456,Semester 1,100,meeting,Meet.
+,,Week 4,,7,Test S2 Module 1,567,Semester 2,100,workshop,WS
+,,Week 5,,7,Test S2 Module 2,678,Semester 2,150,,
+,,Week 6 - Reading Week,,7,Test S2 Module 3,789,Semester 2,150,,
+,,Week 7,,9,Test All Year Module 1,890,ALL,400,,
+,,Week 8,,9,,,,,,
+,,Week 9,,9,,,,,,
+,,Week 10,,9,,,,,,
+,,Week 11,,9,,,,,,
+,,Week 12 - Revision,,9,,,,,,
+,,Week 13 - Exams,,8,,,,,,
+,,Week 14 - Exams,,7,,,,,,
+,Semester 2,Vacation,,0,,,,,,
+,,Vacation,,0,,,,,,
+,,Vacation,,0,,,,,,
+,,Vacation,,0,,,,,,
+,,Vacation,,0,,,,,,
+,,Week 1,,7,,,,,,
+,,Week 2,,7,,,,,,
+,,Week 3,,7,,,,,,
+,,Week 4,,7,,,,,,
+,,Week 5,,7,,,,,,
+,,Week 6,,7,,,,,,
+,,Week 7,,7,,,,,,
+,,Spring Vacation,,1,,,,,,
+,,Spring Vacation,,1,,,,,,
+,,Week 8,,9,,,,,,
+,,Week 9,,9,,,,,,
+,,Week 10,,9,,,,,,
+,,Week 11,,9,,,,,,
+,,Week 12 - Revision,,9,,,,,,
+,,Week 13 - Revision,,9,,,,,,
+,,Week 14 - Exams,,7,,,,,,
+,,Week 15 - Exams,,5,,,,,,
