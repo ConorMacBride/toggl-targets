@@ -41,7 +41,7 @@ def quantise_date(date):
 
 
 GLOBAL_START_DATE = quantise_date(
-    datetime.strptime(semester_data[0, 2], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    datetime.strptime(semester_data[0, 2], '%Y-%m-%d').replace(tzinfo=timezone.utc) + timedelta(hours=6)
 )  # Start date of the first week with days starting at 3 AM
 TIME_MACHINE = False  # Default to current time
 
