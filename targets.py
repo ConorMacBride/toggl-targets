@@ -51,6 +51,7 @@ if len(sys.argv) > 1:  # Parse time machine data from given arguments
         try:  # Check that the date is valid
             TIME_MACHINE_DATE = datetime.strptime(sys.argv[2] + ' ' + sys.argv[3],
                                                   '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+            TIME_MACHINE_DATE_STR = TIME_MACHINE_DATE.strftime('%a, %Y-%m-%d %H:%M:%S')
         except (ValueError, IndexError) as e:
             print("Invalid Time Machine Date. Required format: YYYY-MM-DD HH:MM:SS")
             sys.exit(1)
@@ -86,6 +87,10 @@ def current_semester_data():
 
     n_weeks = int(np.floor(progress / (7 * 24 * 60 * 60)))  # Current week number -1
 
+    if n_weeks + 1 > len(semester_data):
+        print("Year has ended. Use the time machine to access previous dates.")
+        sys.exit(0)
+
     current_week_date = GLOBAL_START_DATE + timedelta(weeks=n_weeks)  # Date of start of this week
 
     # Find when the semester starts
@@ -105,8 +110,8 @@ def current_semester_data():
     week = semester_data[n_weeks, 1]  # Name of week
 
     # Fractional workload for week in semester
-    semester_total_workload = float(sum(np.array(semester_data[semester_starts:semester_ends, 3], dtype=int)))
-    semester_so_far_workload = float(sum(np.array(semester_data[semester_starts:n_weeks, 3], dtype=int)))
+    semester_total_workload = float(sum(np.array(semester_data[semester_starts:semester_ends+1, 3], dtype=int)))
+    semester_so_far_workload = float(sum(np.array(semester_data[semester_starts:n_weeks+1, 3], dtype=int)))
     week_workload = float(semester_data[n_weeks, 3])
 
     workload = week_workload / semester_total_workload  # Workload for current week
@@ -186,7 +191,7 @@ def query_toggl():
         try:
             table = np.append(table, [valid_entry], axis=0)
         except NameError:
-            table = [valid_entry]
+            table = np.array([valid_entry])
 
     try:  # Record the current timer
         if current_timer == 0:
@@ -195,7 +200,12 @@ def query_toggl():
         try:
             table = np.append(table, [current_timer], axis=0)
         except NameError:
-            table = [current_timer]
+            table = np.array([current_timer])
+
+    try:  # If no entries have been added make None
+        table
+    except NameError:
+        table = np.array([[None, None, None, None, None, None]])
 
     return table
 
@@ -577,7 +587,7 @@ def main(stdscr):
         # Day Section
         projects = group_projects(day_toggl_data)
         target, target_overall, none1, none2 = get_stats(projects, mode="day")
-        print_module_grid(projects, "Today", stat1=target, stat1_sum=target_overall, t="daily")
+        print_module_grid(projects, TIME_MACHINE_DATE_STR if TIME_MACHINE else "Today", stat1=target, stat1_sum=target_overall, t="daily")
 
         # Week Section
         projects = group_projects(week_toggl_data)
@@ -601,6 +611,7 @@ def main(stdscr):
             print_module_grid(all_year_projects, "All Year Modules", stat1=completion, stat1_sum=completion_overall)
 
         if TIME_MACHINE:  # Freeze screen
+            print_reset()
             time.sleep(60 * 60)  # Quit after 1 hour
             sys.exit(0)
 
