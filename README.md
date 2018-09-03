@@ -87,6 +87,6 @@ Next, list the names of all the projects you want to track under `PROJECT_NAME`.
 The last two columns make up the list of Toggl tags to be tracked. Up to 5 can be given. The `TRACKED_TAGS` column should contain the name Toggl uses for the tag and the `TAG_SYMBOL` column should contain a short name (max. 6 char.) for each to be displayed in this program.
 
 ### Run program
-To run the program type `python3 targets.py` into the terminal. To explore historical data you can enter the time machine by typing `python3 targets.py -t YYYY-MM-DD HH:MM:SS` instead. If you pick a time during which a tracked timer was running, all of the then running timer's final duration will be included; not just up to the given time!
+To run the program type `python3 targets.py` into the terminal. To explore historical data you can enter the time machine by typing `python3 targets.py -t YYYY-MM-DD HH:MM:SS` instead. If you pick a time during which a tracked timer was running, all of the then running timer's final duration will be included; not just up to the given time! Only time entries from active projects are included in the analysis, so if you have archived an old project time machine won't be able to see it.
 
 Note: you need to make sure you have `python3` installed. The `curses` package also must be installed; is doesn't come with Python by default on Windows. Other required packages should come with Python on all platforms.
