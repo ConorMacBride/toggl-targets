@@ -4,11 +4,14 @@
 import numpy as np
 from datetime import datetime, timezone, timedelta
 import sys
+import logging
 import time
 import requests
 from urllib.parse import urlencode
 from requests.auth import HTTPBasicAuth
 import curses  # UNIX, MacOS
+
+logging.basicConfig(filename='targets.log', level=logging.DEBUG)
 
 # Load config.csv
 
@@ -26,22 +29,24 @@ n_semesters = len(np.where(semester_data[:, 0] != '')[0])  # Number of semesters
 
 def quantise_date(date):
     """
-    Convert a datetime object into a UTC datetime object for the start of the day; defined as 3 AM of given day.
+    Convert a datetime object into a UTC datetime object for the start of the day; defined as local 3 AM of given day.
     :param date: datetime object
     :return: datetime object of start of given day in UTC
     """
     def to_datetime(date_string):
-        return datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+        return datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S%z').astimezone(timezone.utc)
 
-    hour = int(date.strftime('%H'))
+    local_date = date.astimezone(LOCAL_TIMEZONE)
+    hour = int(local_date.strftime('%H'))
     if hour >= 3:  # In current day
-        return to_datetime(date.strftime('%Y-%m-%d 03:00:00'))
+        return to_datetime(local_date.strftime('%Y-%m-%d 03:00:00%z'))
     else:  # In previous day
-        return to_datetime(date.strftime('%Y-%m-%d 03:00:00')) - timedelta(days=1)
+        return to_datetime(local_date.strftime('%Y-%m-%d 03:00:00%z')) - timedelta(days=1)
 
 
+LOCAL_TIMEZONE = datetime.now(timezone.utc).astimezone().tzinfo
 GLOBAL_START_DATE = quantise_date(
-    datetime.strptime(semester_data[0, 2], '%Y-%m-%d').replace(tzinfo=timezone.utc) + timedelta(hours=6)
+    datetime.strptime(semester_data[0, 2], '%Y-%m-%d').replace(tzinfo=LOCAL_TIMEZONE) + timedelta(hours=6)
 )  # Start date of the first week with days starting at 3 AM
 TIME_MACHINE = False  # Default to current time
 
@@ -50,7 +55,7 @@ if len(sys.argv) > 1:  # Parse time machine data from given arguments
         TIME_MACHINE = True
         try:  # Check that the date is valid
             TIME_MACHINE_DATE = datetime.strptime(sys.argv[2] + ' ' + sys.argv[3],
-                                                  '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+                                                  '%Y-%m-%d %H:%M:%S').replace(tzinfo=LOCAL_TIMEZONE)
             TIME_MACHINE_DATE_STR = TIME_MACHINE_DATE.strftime('%a, %Y-%m-%d %H:%M:%S')
         except (ValueError, IndexError) as e:
             print("Invalid Time Machine Date. Required format: YYYY-MM-DD HH:MM:SS")
@@ -63,7 +68,7 @@ def current_time():
     :return: datetime object
     """
     if TIME_MACHINE:
-        return TIME_MACHINE_DATE
+        return TIME_MACHINE_DATE.astimezone(timezone.utc)
     else:
         return datetime.now(timezone.utc)
 
@@ -564,8 +569,10 @@ def main(stdscr):
             try:
                 year_toggl_data = query_toggl()  # Data for academic year
                 TOGGL_ERROR = False
+                logging.info('Refreshed Toggl time entries')
             except (requests.HTTPError, requests.ConnectionError) as e:  # HTTP or connection error encountered
                 TOGGL_ERROR = True
+                logging.error('Could not refresh Toggl time entries. %s', e)
                 try:  # Check if previous local data exists
                     year_toggl_data
                 except NameError:  # No previous data; keep trying Toggl
