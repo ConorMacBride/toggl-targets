@@ -478,9 +478,9 @@ def print_tag_grid(data, toggl_data):
     # Find tag proportions across all projects
     total_duration = np.sum(data[:, 4].astype(float))  # Sum of durations
     n_tags = len(TRACKED_TAGS)
-    tags = np.empty(n_tags, dtype=float)
+    tags = np.zeros(n_tags, dtype=float)
     if total_duration == 0:  # If no relevant time entries found
-        tags = 0
+        pass  # Keep all as zero
     else:
         for i in range(n_tags):
             matched_tags = np.where(toggl_data[:, 5] == TRACKED_TAGS[i, 0])[0]  # Locations of entries with tag
