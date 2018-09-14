@@ -73,7 +73,7 @@ def current_time():
         return datetime.now(timezone.utc)
 
 
-project_data = np.array(config_file[:, 5:9], dtype='U')  # Last 4 columns of config.csv
+project_data = np.array(config_file[:, 5:9], dtype='U')  # 4 columns from project name to total wl of config.csv
 project_data = project_data[list(set(project_data.nonzero()[0]))]
 
 TRACKED_TAGS = np.array(config_file[:5, 9:11], dtype='U')  # 5 tags max
@@ -115,9 +115,25 @@ def current_semester_data():
     week = semester_data[n_weeks, 1]  # Name of week
 
     # Fractional workload for week in semester
-    semester_total_workload = float(sum(np.array(semester_data[semester_starts:semester_ends+1, 3], dtype=int)))
-    semester_so_far_workload = float(sum(np.array(semester_data[semester_starts:n_weeks+1, 3], dtype=int)))
-    week_workload = float(semester_data[n_weeks, 3])
+    modules = project_data[:, 0:3]  # Name, pid, semester
+    workloads = np.array(semester_data[:, 3], dtype=str)
+    for week_row in workloads:
+        cases = week_row.split(';')
+        default = cases[0]
+        week_row = np.full(len(modules), default, dtype=float)
+        if len(cases) > 1:  # If custom values are specified
+            for case in np.array(cases[1:]):
+                case = case.split(':')
+                week_row[np.where(modules[:, 1] == case[0])[0]] = case[1]
+        try:
+            workload_table = np.vstack([workload_table, week_row])
+        except NameError:
+            workload_table = week_row
+        logging.info(week_row)
+
+    semester_total_workload = np.array(workload_table[semester_starts:semester_ends+1], dtype=float).sum(axis=0)
+    semester_so_far_workload = np.array(workload_table[semester_starts:n_weeks+1], dtype=float).sum(axis=0)
+    week_workload = np.array(workload_table[n_weeks], dtype=float)
 
     workload = week_workload / semester_total_workload  # Workload for current week
     cum_workload = semester_so_far_workload / semester_total_workload  # Cumulative workload for semester
@@ -267,8 +283,14 @@ def group_projects(data, all_year=False):
 
     if all_year:  # Just give year-long details for semester="ALL" modules
         current_projects = project_data[project_data[:, 2] == "ALL"]
+        valid_projects = np.sort(np.where(project_data[:, 2] == "ALL")[0])
     else:
         current_projects = filter_semester(project_data, position=2)  # Data on the semester's projects
+        cur_sem = np.where(project_data[:, 2] == CURRENT_SEMESTER)[0]
+        all_sem = np.where(project_data[:, 2] == "ALL")[0]
+        valid_projects = np.sort(np.concatenate((cur_sem, all_sem), axis=None).T.flatten())
+    cur_workload_f = CUR_WORKLOAD[valid_projects]  # Filtered
+    cum_workload_f = CUM_WORKLOAD[valid_projects]  # Filtered
 
     n_projects = len(current_projects)  # Number of current projects
     n_tags = len(TRACKED_TAGS)  # Number of tracked tags
@@ -299,10 +321,10 @@ def group_projects(data, all_year=False):
                 tags[i, j] = np.sum(filtered_data[matched_tags][:, 4]) / durations[i]  # Fraction of tot. project dur.
 
     # Number of seconds expected this week
-    week_targets = current_projects[:, 3].astype(int) * CUR_WORKLOAD  # Ignore if all_year=True
+    week_targets = current_projects[:, 3].astype(int) * cur_workload_f  # Ignore if all_year=True
 
     # Number of seconds expected so far this semester including all of current week
-    semester_targets = current_projects[:, 3].astype(int) * CUM_WORKLOAD  # Ignore if all_year=True
+    semester_targets = current_projects[:, 3].astype(int) * cum_workload_f  # Ignore if all_year=True
 
     for new_col in [durations, week_targets, semester_targets]:  # Add the new data to the existing data
         current_projects = np.append(current_projects, new_col.reshape((current_projects.shape[0], 1)), 1)
