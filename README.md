@@ -9,7 +9,7 @@ Up to 5 Toggl tags can be tracked by the program. For each module and overall, s
 
 Days start and end at 3 AM so you can meet your daily targets into the night. You can also travel back in time and view historical data; just make sure you don't travel to a time when a tracked timer was currently running!
 
-Download now at: https://github.com/ConorMacBride/toggl-targets
+Download now at: <a href="https://github.com/ConorMacBride/toggl-targets">https://github.com/ConorMacBride/toggl-targets</a>
 
 ## Sample output
 
@@ -67,7 +67,7 @@ If no tags are tracked or no all year projects are tracked, these blocks will no
 ## Install
 
 ### Download files
-Download `targets.py`, `config.csv` and `projects.py` to your computer from the repository at https://github.com/ConorMacBride/toggl-targets. Make sure `targets.py` and `config.csv` are kept in the same folder.
+Download `targets.py`, `config.csv` and `projects.py` to your computer from the repository at <a href="https://github.com/ConorMacBride/toggl-targets">https://github.com/ConorMacBride/toggl-targets</a>. Make sure `targets.py` and `config.csv` are kept in the same folder.
 
 ### Setup configuration file
 Next edit `config.csv` with your own data. Your own API token can be found at `https://toggl.com/app/profile`. This allows this program to access your Toggl data. The refresh rate can also be changed. This is how often the local data is updated.
