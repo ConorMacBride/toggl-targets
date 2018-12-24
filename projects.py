@@ -22,8 +22,9 @@ r.raise_for_status()  # Check if there was an error
 workspaces = r.json()
 
 print("Select the workplace:")
-i = 1
+i = 0
 for workspace in workspaces:
+    i += 1
     print(i, ':', workspace['name'])
 
 try:
@@ -34,7 +35,7 @@ except (ValueError, AssertionError) as e:
     sys.exit(1)
 
 # Get project
-r = requests.get(url + '/' + str(workspaces[i-1]['id']) + '/projects',
+r = requests.get(url + '/' + str(workspaces[wid-1]['id']) + '/projects',
                  headers=headers, auth=HTTPBasicAuth(API_TOKEN, 'api_token'))
 r.raise_for_status()  # Check if there was an error
 
