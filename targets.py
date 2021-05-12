@@ -165,7 +165,7 @@ def query_toggl():
     :return: numpy array of time entries
     """
     parameters = {'start_date': GLOBAL_START_DATE.isoformat(), 'end_date': current_time().isoformat()}
-    url = 'https://www.toggl.com/api/v8/time_entries'
+    url = 'https://api.track.toggl.com/api/v8/time_entries'
     if len(parameters) > 0:
         url = url + '?{}'.format(urlencode(parameters))
 
