@@ -28,7 +28,7 @@ If no tags are tracked or no all year projects are tracked, these blocks will no
 Download `targets.py`, `config.csv` and `projects.py` to your computer from the repository at <a href="https://github.com/ConorMacBride/toggl-targets">https://github.com/ConorMacBride/toggl-targets</a>. Make sure `targets.py` and `config.csv` are kept in the same folder.
 
 ### Setup configuration file
-Next edit `config.csv` with your own data. Your own API token can be found at `https://toggl.com/app/profile`. This allows this program to access your Toggl data. The refresh rate can also be changed. This is how often the local data is updated.
+Next edit `config.csv` with your own data. Your own API token can be found at `https://track.toggl.com/profile`. This allows this program to access your Toggl data. The refresh rate can also be changed. This is how often the local data is updated.
 
 The next four columns from `SEMESTER NAME` to `WORKLOAD` form the next block of data. Each row represents a 7 day week. There can be no jumps in weeks so include any work-free weeks also. 
 

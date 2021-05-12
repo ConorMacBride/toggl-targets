@@ -12,7 +12,7 @@ except (ValueError, IndexError) as e:
     print("Toggl API token must be provided!")
     sys.exit(1)
 
-url = 'https://www.toggl.com/api/v8/workspaces'
+url = 'https://api.track.toggl.com/api/v8/workspaces'
 headers = {'content-type': 'application/json'}
 
 # Get workspace
